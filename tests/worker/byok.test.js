@@ -179,3 +179,43 @@ describe("callUserProvider validation", () => {
     );
   });
 });
+
+describe("custom provider auth errors are user-friendly", () => {
+  let realFetch;
+  beforeEach(() => {
+    realFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  function post(body) {
+    return new Request("https://example.test/api/humanize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "cf-connecting-ip": "203.0.113.10" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  const byokBody = {
+    text: "Hello world, this is a longer test sentence.",
+    provider: "custom",
+    apiKey: "bad-key",
+    custom: { baseUrl: "https://api.groq.com/openai/v1", model: "m" },
+  };
+
+  it("returns 401 with a Settings hint for rejected keys (JSON)", async () => {
+    globalThis.fetch = async () => new Response("no", { status: 401 });
+    const res = await worker.fetch(post(byokBody), { AI: { run: async () => ({ response: "x" }) } });
+    assert.equal(res.status, 401);
+    const data = await res.json();
+    assert.match(data.error, /Check the key in Settings/);
+    assert.ok(!data.error.includes("bad-key"), "must not echo the key");
+  });
+
+  it("returns 429 hint for rate-limited keys", async () => {
+    globalThis.fetch = async () => new Response("slow", { status: 429 });
+    const res = await worker.fetch(post(byokBody), { AI: { run: async () => ({ response: "x" }) } });
+    assert.equal(res.status, 429);
+  });
+});

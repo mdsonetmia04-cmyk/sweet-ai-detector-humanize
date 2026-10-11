@@ -19,6 +19,21 @@ function wantsStream(request, url) {
   return accept.includes("application/x-ndjson");
 }
 
+function customProviderError(provider, err) {
+  // For user-supplied keys, surface actionable messages instead of the
+  // generic provider-configuration error. Messages never contain the key.
+  if (provider === "custom" && (err?.status === 401 || err?.status === 403)) {
+    return "Your API key was rejected by the provider. Check the key in Settings.";
+  }
+  if (provider === "custom" && err?.status === 429) {
+    return "Your provider's rate limit was reached. Try again in a moment.";
+  }
+  return null;
+}
+
+const GENERIC_ANALYSIS_ERROR =
+  "Analysis failed. Check the AI provider configuration or quota and try again.";
+
 function ndjsonResponse(pull) {
   const stream = new ReadableStream({
     async start(controller) {
@@ -105,7 +120,7 @@ export async function handleDetect(request, env) {
         console.error("detect failed:", err?.message || "unknown error");
         send({
           type: "error",
-          error: "Analysis failed. Check the AI provider configuration or quota and try again.",
+          error: customProviderError(provider, err) || GENERIC_ANALYSIS_ERROR,
         });
       }
     });
@@ -121,9 +136,11 @@ export async function handleDetect(request, env) {
     return json({ analysis: finalize(result) });
   } catch (err) {
     console.error("detect failed:", err?.message || "unknown error");
-    return errorJson(
-      "Analysis failed. Check the AI provider configuration or quota and try again.",
-      502,
-    );
+    const friendly = customProviderError(provider, err);
+    if (friendly) {
+      const status = err?.status === 429 ? 429 : 401;
+      return errorJson(friendly, status);
+    }
+    return errorJson(GENERIC_ANALYSIS_ERROR, 502);
   }
 }

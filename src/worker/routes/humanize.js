@@ -28,6 +28,21 @@ function wantsStream(request, url) {
   return accept.includes("application/x-ndjson");
 }
 
+function customProviderError(provider, err) {
+  // For user-supplied keys, surface actionable messages instead of the
+  // generic provider-configuration error. Messages never contain the key.
+  if (provider === "custom" && (err?.status === 401 || err?.status === 403)) {
+    return "Your API key was rejected by the provider. Check the key in Settings.";
+  }
+  if (provider === "custom" && err?.status === 429) {
+    return "Your provider's rate limit was reached. Try again in a moment.";
+  }
+  return null;
+}
+
+const GENERIC_PROCESSING_ERROR =
+  "Processing failed before completing. Check the AI provider configuration or quota and try again. No partial result was kept.";
+
 function ndjsonResponse(pull) {
   const stream = new ReadableStream({
     async start(controller) {
@@ -123,8 +138,7 @@ export async function handleHumanize(request, env) {
         console.error("humanize failed:", err?.message || "unknown error");
         send({
           type: "error",
-          error:
-            "Processing failed before completing. Check the AI provider configuration or quota and try again. No partial result was kept.",
+          error: customProviderError(provider, err) || GENERIC_PROCESSING_ERROR,
         });
       }
     });
@@ -146,10 +160,12 @@ export async function handleHumanize(request, env) {
     });
   } catch (err) {
     console.error("humanize failed:", err?.message || "unknown error");
-    return errorJson(
-      "Processing failed before completing. Check the AI provider configuration or quota and try again. No partial result was kept.",
-      502,
-    );
+    const friendly = customProviderError(provider, err);
+    if (friendly) {
+      const status = err?.status === 429 ? 429 : 401;
+      return errorJson(friendly, status);
+    }
+    return errorJson(GENERIC_PROCESSING_ERROR, 502);
   }
 }
 
