@@ -85,6 +85,35 @@ export async function readJsonBody(request, maxBytes) {
   return { body };
 }
 
+import { checkCustomHost } from "../providers/external.js";
+
 export function byteLength(text) {
   return new TextEncoder().encode(text).length;
+}
+
+/**
+ * Parse and validate a user-supplied (BYOK) provider configuration.
+ * Returns { custom } or { error, status }. The API key is never logged
+ * or echoed back — only generic validation messages are returned.
+ */
+export function parseCustomProvider(body) {
+  const raw = body.custom && typeof body.custom === "object" ? body.custom : {};
+  const baseUrl = typeof raw.baseUrl === "string" ? raw.baseUrl.trim() : "";
+  const model = typeof raw.model === "string" ? raw.model.trim().slice(0, 200) : "";
+  const apiKey = typeof body.apiKey === "string" ? body.apiKey : "";
+
+  if (!apiKey.trim()) {
+    return { error: "Add your API key in Settings first.", status: 400 };
+  }
+  if (apiKey.length > 500) {
+    return { error: "That API key looks invalid. Check it in Settings.", status: 400 };
+  }
+  if (!model) {
+    return { error: "Choose a model in Settings first.", status: 400 };
+  }
+  const hostCheck = checkCustomHost(baseUrl);
+  if (!hostCheck.ok) {
+    return { error: hostCheck.error, status: 400 };
+  }
+  return { custom: { baseUrl: hostCheck.baseUrl, model, apiKey } };
 }

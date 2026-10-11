@@ -13,6 +13,7 @@ import {
   checkRateLimit,
   errorJson,
   json,
+  parseCustomProvider,
   rateLimitedResponse,
   readJsonBody,
 } from "../utils/http.js";
@@ -79,6 +80,13 @@ export async function handleHumanize(request, env) {
   const tone = normalizeTone(body.tone);
   const provider = normalizeProvider(body.provider, env);
 
+  let custom;
+  if (provider === "custom") {
+    const parsed = parseCustomProvider(body);
+    if (parsed.error) return errorJson(parsed.error, parsed.status);
+    custom = parsed.custom;
+  }
+
   const chunkCount = chunkText(text, CHUNK_CHARS).length;
   if (chunkCount > MAX_CHUNKS) {
     return errorJson(
@@ -99,7 +107,7 @@ export async function handleHumanize(request, env) {
           text,
           provider,
           systemPrompt,
-          options: { chunkChars: CHUNK_CHARS },
+          options: { chunkChars: CHUNK_CHARS, custom },
           onProgress: async ({ done, total }) => send({ type: "progress", done, total }),
         });
         send({
@@ -127,7 +135,7 @@ export async function handleHumanize(request, env) {
       text,
       provider,
       systemPrompt,
-      options: { chunkChars: CHUNK_CHARS },
+      options: { chunkChars: CHUNK_CHARS, custom },
     });
     return json({
       text: result.text,

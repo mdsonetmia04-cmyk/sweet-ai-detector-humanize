@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, Settings, X } from "lucide-react";
 
 const NAV = [
   { id: "humanizer", label: "Humanizer" },
@@ -8,7 +8,7 @@ const NAV = [
   { id: "about", label: "About" },
 ];
 
-export default function Header({ onNavigate }) {
+export default function Header({ onNavigate, onOpenSettings, hasApiKey }) {
   const [open, setOpen] = useState(false);
 
   function go(id) {
@@ -52,14 +52,31 @@ export default function Header({ onNavigate }) {
           ))}
         </nav>
 
-        <button
-          className="grid h-10 w-10 place-items-center rounded-xl border border-[#dedfd8] bg-white text-[#4e554d] md:hidden"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-label={open ? "Close menu" : "Open menu"}
-        >
-          {open ? <X size={18} /> : <Menu size={18} />}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onOpenSettings}
+            title="API settings — use your own free API key"
+            aria-label="Open API settings"
+            className={`relative grid h-10 w-10 place-items-center rounded-xl border transition ${
+              hasApiKey
+                ? "border-[#cfe0d2] bg-[#eef4ec] text-[#2f5b40]"
+                : "border-[#dedfd8] bg-white text-[#4e554d] hover:border-[#aebdb0]"
+            }`}
+          >
+            <Settings size={17} />
+            {hasApiKey && (
+              <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-[#fbfbf8] bg-[#2f5b40]" aria-hidden="true" />
+            )}
+          </button>
+          <button
+            className="grid h-10 w-10 place-items-center rounded-xl border border-[#dedfd8] bg-white text-[#4e554d] md:hidden"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-label={open ? "Close menu" : "Open menu"}
+          >
+            {open ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
       </div>
 
       {open && (

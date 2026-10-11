@@ -110,6 +110,27 @@ account and region, and for your external provider, before production use.
    - Add **Turnstile** on the site if you see automated abuse.
    - Monitor Workers AI usage and external-provider spend.
 
+## Bring your own API key (Settings)
+
+Users can optionally add their own free API key in the app's **Settings** (gear icon in the
+header) and choose **"My API key"** in the AI engine dropdown. Supported presets:
+
+- **Google Gemini** — free tier via AI Studio (`generativelanguage.googleapis.com`)
+- **Groq** — free tier (`api.groq.com`)
+- **OpenRouter** — including `:free` models (`openrouter.ai`)
+- **Custom** — any OpenAI-compatible `https` endpoint on a supported host
+
+How it works:
+
+- The key is stored **only in the user's browser** (localStorage). It is sent with each
+  request over HTTPS and used by the Worker solely to call the chosen provider for that
+  request. It is never logged, never stored server-side, and never echoed in responses.
+- The Worker only allows an allowlist of well-known provider hosts
+  (`ALLOWED_CUSTOM_HOSTS` in `src/worker/providers/external.js`) to prevent abuse of the
+  backend as an open proxy.
+- Adding a key is **optional** — the app works fully without it using the owner's
+  configured providers. It simply lets users run on their own quota.
+
 ## API
 
 ### `GET /api/health`
@@ -130,7 +151,19 @@ Never returns secret values.
 
 Modes: `humanize`, `clarity`, `grammar`, `professional`, `casual`, `academic`, `simple`, `blog`.
 Tones: `natural`, `professional`, `casual`, `academic`, `simple`.
-Providers: `auto`, `cloudflare`, `external`.
+Providers: `auto`, `cloudflare`, `external`, `custom`.
+
+For `provider: "custom"`, also send the user's key and endpoint (used only for that request,
+never stored):
+
+```json
+{
+  "text": "Text to revise",
+  "provider": "custom",
+  "apiKey": "user-supplied key",
+  "custom": { "baseUrl": "https://api.groq.com/openai/v1", "model": "llama-3.3-70b-versatile" }
+}
+```
 
 Append `?stream=1` (or `Accept: application/x-ndjson`) for newline-delimited JSON progress events:
 

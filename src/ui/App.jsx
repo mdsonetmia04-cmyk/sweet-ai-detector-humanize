@@ -6,9 +6,13 @@ import DetectorWorkspace from "./components/DetectorWorkspace.jsx";
 import Features from "./components/Features.jsx";
 import About from "./components/About.jsx";
 import Footer from "./components/Footer.jsx";
+import SettingsModal from "./components/SettingsModal.jsx";
+import { hasKeyConfig } from "./utils/byok.js";
 
 export default function App() {
   const [tab, setTab] = useState("humanizer");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [keySaved, setKeySaved] = useState(() => hasKeyConfig());
 
   const scrollTo = useCallback((id) => {
     if (id === "top") {
@@ -25,7 +29,11 @@ export default function App() {
 
   return (
     <main className="min-h-screen bg-[#fafaf7] text-[#20241f]">
-      <Header onNavigate={scrollTo} />
+      <Header
+        onNavigate={scrollTo}
+        onOpenSettings={() => setSettingsOpen(true)}
+        hasApiKey={keySaved}
+      />
       <Hero
         onStartWriting={() => scrollTo("humanizer")}
         onCheckPatterns={() => scrollTo("detector")}
@@ -56,16 +64,23 @@ export default function App() {
         </div>
 
         <div id="humanizer" className="scroll-mt-28">
-          {tab === "humanizer" && <HumanizerWorkspace />}
+          {tab === "humanizer" && <HumanizerWorkspace onOpenSettings={() => setSettingsOpen(true)} />}
         </div>
         <div id="detector" className="scroll-mt-28">
-          {tab === "detector" && <DetectorWorkspace />}
+          {tab === "detector" && <DetectorWorkspace onOpenSettings={() => setSettingsOpen(true)} />}
         </div>
       </section>
 
       <Features />
       <About />
       <Footer />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => {
+          setSettingsOpen(false);
+          setKeySaved(hasKeyConfig());
+        }}
+      />
     </main>
   );
 }

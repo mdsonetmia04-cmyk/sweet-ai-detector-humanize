@@ -1,5 +1,9 @@
 import { callCloudflareAI } from "../providers/cloudflare.js";
-import { callExternalAI, externalConfigured } from "../providers/external.js";
+import {
+  callExternalAI,
+  callUserProvider,
+  externalConfigured,
+} from "../providers/external.js";
 import { chunkText } from "./chunking.js";
 
 /**
@@ -89,7 +93,7 @@ export const TONES = {
 
 export const TONE_KEYS = Object.keys(TONES);
 
-export const PROVIDER_KEYS = ["auto", "cloudflare", "external"];
+export const PROVIDER_KEYS = ["auto", "cloudflare", "external", "custom"];
 
 export function normalizeMode(mode) {
   return MODE_KEYS.includes(mode) ? mode : "humanize";
@@ -117,7 +121,9 @@ export function buildPrompt(mode, tone) {
 }
 
 export function providerLabel(provider) {
-  return provider === "cloudflare" ? "Cloudflare Workers AI" : "External AI";
+  if (provider === "cloudflare") return "Cloudflare Workers AI";
+  if (provider === "custom") return "your API key";
+  return "External AI";
 }
 
 /**
@@ -146,6 +152,14 @@ async function runOnce(env, provider, systemPrompt, userText, options = {}) {
     return {
       text: await withRetry(() => callCloudflareAI(env, systemPrompt, userText, options)),
       provider: "cloudflare",
+    };
+  }
+  if (provider === "custom") {
+    return {
+      text: await withRetry(() =>
+        callUserProvider(options.custom, systemPrompt, userText, options),
+      ),
+      provider: "custom",
     };
   }
   return {

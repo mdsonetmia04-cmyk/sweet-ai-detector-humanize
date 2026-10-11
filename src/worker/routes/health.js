@@ -1,7 +1,7 @@
 import { json } from "../utils/http.js";
 import { cloudflareModel } from "../providers/cloudflare.js";
 import { externalBaseUrl, externalConfigured, externalModel } from "../providers/external.js";
-import { MODE_KEYS, TONE_KEYS } from "../services/engine.js";
+import { MODE_KEYS, PROVIDER_KEYS, TONE_KEYS } from "../services/engine.js";
 
 /**
  * GET /api/health — basic service status.
@@ -19,6 +19,7 @@ export function handleHealth(request, env) {
     defaultProvider: env.DEFAULT_PROVIDER || "auto",
     modes: MODE_KEYS,
     tones: TONE_KEYS,
+    providers: PROVIDER_KEYS,
     limits: {
       humanizeMaxBodyBytes: 1_000_000,
       humanizeMaxChunksPerRequest: 160,

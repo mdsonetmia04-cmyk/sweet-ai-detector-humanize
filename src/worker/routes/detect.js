@@ -5,6 +5,7 @@ import {
   checkRateLimit,
   errorJson,
   json,
+  parseCustomProvider,
   rateLimitedResponse,
   readJsonBody,
 } from "../utils/http.js";
@@ -81,6 +82,13 @@ export async function handleDetect(request, env) {
   const provider = normalizeProvider(body.provider, env);
   const stream = wantsStream(request, url);
 
+  let custom;
+  if (provider === "custom") {
+    const parsed = parseCustomProvider(body);
+    if (parsed.error) return errorJson(parsed.error, parsed.status);
+    custom = parsed.custom;
+  }
+
   if (stream) {
     return ndjsonResponse(async (send) => {
       send({ type: "progress", done: 0, total: 1 });
@@ -88,6 +96,7 @@ export async function handleDetect(request, env) {
         const result = await analyzeDocument(env, {
           text,
           provider,
+          custom,
           maxChunks: MAX_ANALYSIS_CHUNKS,
           onProgress: async ({ done, total }) => send({ type: "progress", done, total }),
         });
@@ -106,6 +115,7 @@ export async function handleDetect(request, env) {
     const result = await analyzeDocument(env, {
       text,
       provider,
+      custom,
       maxChunks: MAX_ANALYSIS_CHUNKS,
     });
     return json({ analysis: finalize(result) });

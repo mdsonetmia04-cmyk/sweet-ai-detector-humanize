@@ -147,7 +147,7 @@ describe("runProvider hybrid behaviour", () => {
       calls += 1;
       return new Response("nope", { status: 401 });
     };
-    await assert.rejects(runProvider(env, "external", "sys", "hi"), /rejected the API key/);
+    await assert.rejects(runProvider(env, "external", "sys", "hi"), /was rejected/);
     assert.equal(calls, 1);
   });
 

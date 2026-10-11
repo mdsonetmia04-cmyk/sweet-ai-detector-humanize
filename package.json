@@ -21,7 +21,7 @@
     "dev": "vite --host 0.0.0.0",
     "dev:worker": "npm run build && wrangler dev",
     "preview": "vite preview",
-    "test:worker": "node --test tests/worker/chunking.test.js tests/worker/detector.test.js tests/worker/engine.test.js tests/worker/http.test.js tests/worker/routes.test.js",
+    "test:worker": "node --test tests/worker/byok.test.js tests/worker/chunking.test.js tests/worker/detector.test.js tests/worker/engine.test.js tests/worker/http.test.js tests/worker/routes.test.js",
     "typecheck": "tsc --noEmit"
   },
   "type": "module",

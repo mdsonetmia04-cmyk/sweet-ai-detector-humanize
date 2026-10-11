@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { countSentences, countWords } from "../utils/text.js";
 import { postNDJSON } from "../utils/api.js";
+import { hasKeyConfig, loadKeyConfig } from "../utils/byok.js";
 
 const ASSESSMENT_STYLE = {
   low: {
@@ -24,7 +25,7 @@ const ASSESSMENT_STYLE = {
   },
 };
 
-export default function DetectorWorkspace() {
+export default function DetectorWorkspace({ onOpenSettings }) {
   const [input, setInput] = useState("");
   const [analysis, setAnalysis] = useState(null);
   const [provider, setProvider] = useState("auto");
@@ -39,13 +40,27 @@ export default function DetectorWorkspace() {
 
   async function analyze() {
     if (!input.trim() || loading) return;
+    let body = { text: input, provider };
+    if (provider === "custom") {
+      const cfg = loadKeyConfig();
+      if (!cfg) {
+        setError("Add your API key in Settings first to use this engine.");
+        if (onOpenSettings) onOpenSettings();
+        return;
+      }
+      body = {
+        ...body,
+        apiKey: cfg.apiKey,
+        custom: { baseUrl: cfg.baseUrl, model: cfg.model },
+      };
+    }
     setLoading(true);
     setError("");
     setAnalysis(null);
     try {
       const result = await postNDJSON(
         "/api/detect?stream=1",
-        { text: input, provider },
+        body,
         (event) => {
           if (event.type === "progress" && event.total > 1) {
             setProgress(`Analyzing section ${Math.max(event.done, 1)} of ${event.total}…`);
@@ -90,6 +105,16 @@ export default function DetectorWorkspace() {
         for academic, employment, disciplinary, or other high-stakes decisions.
       </div>
 
+      {provider === "custom" && !hasKeyConfig() && (
+        <button
+          onClick={onOpenSettings}
+          className="mb-4 w-full rounded-xl border border-[#e8dfc8] bg-[#faf6e9] px-4 py-3 text-left text-[13px] leading-6 text-[#6b5a2b] hover:border-[#d8cba4]"
+        >
+          <strong className="font-semibold">“My API key” needs a key.</strong>{" "}
+          Open Settings to add a free Gemini, Groq, or OpenRouter key — it takes a minute.
+        </button>
+      )}
+
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <section className="overflow-hidden rounded-2xl border border-[#e1e2dc] bg-white shadow-[0_4px_22px_rgba(28,38,29,0.03)]">
           <div className="flex items-center justify-between border-b border-[#ecece7] px-5 py-3.5">
@@ -126,6 +151,7 @@ export default function DetectorWorkspace() {
                   <option value="auto">Auto / Hybrid</option>
                   <option value="cloudflare">Cloudflare AI</option>
                   <option value="external">External API</option>
+                  <option value="custom">My API key</option>
                 </select>
                 <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#777d74]" />
               </div>

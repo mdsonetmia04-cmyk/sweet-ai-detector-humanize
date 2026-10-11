@@ -1,4 +1,4 @@
-import { runProvider } from "./engine.js";
+import { providerLabel, runProvider } from "./engine.js";
 import { chunkText } from "./chunking.js";
 
 /**
@@ -141,7 +141,7 @@ function dedupeKeepOrder(items) {
  * document-level result. Keeps the number of chunks bounded so a single
  * request stays within provider and runtime limits.
  */
-export async function analyzeDocument(env, { text, provider, onProgress, maxChunks = 8 }) {
+export async function analyzeDocument(env, { text, provider, custom, onProgress, maxChunks = 8 }) {
   const chunks = chunkText(text, 6500).slice(0, maxChunks);
   const analyses = [];
   const used = new Set();
@@ -152,10 +152,10 @@ export async function analyzeDocument(env, { text, provider, onProgress, maxChun
       provider,
       DETECTOR_SYSTEM_PROMPT,
       chunks[i],
-      { temperature: 0.2, maxTokens: 2048 },
+      { temperature: 0.2, maxTokens: 2048, custom },
     );
     analyses.push(parseAnalysisResponse(result.text));
-    used.add(result.provider === "cloudflare" ? "Cloudflare Workers AI" : "External AI");
+    used.add(providerLabel(result.provider));
     if (onProgress) {
       await onProgress({ done: i + 1, total: chunks.length });
     }

@@ -9,6 +9,7 @@ import {
   compareParagraphs, readingTimeMinutes, readTextFile,
 } from "../utils/text.js";
 import { postNDJSON } from "../utils/api.js";
+import { hasKeyConfig, loadKeyConfig } from "../utils/byok.js";
 
 const MODES = [
   ["humanize", "Natural Humanize"],
@@ -44,9 +45,10 @@ const PROVIDERS = [
   ["auto", "Auto / Hybrid"],
   ["cloudflare", "Cloudflare AI"],
   ["external", "External API"],
+  ["custom", "My API key"],
 ];
 
-export default function HumanizerWorkspace() {
+export default function HumanizerWorkspace({ onOpenSettings }) {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState("");
   const [history, setHistory] = useState([]);
@@ -78,6 +80,20 @@ export default function HumanizerWorkspace() {
 
   async function run(text, { label, replaceSelection } = {}) {
     if (!text.trim() || loading) return;
+    let body = { text, mode, tone, provider };
+    if (provider === "custom") {
+      const cfg = loadKeyConfig();
+      if (!cfg) {
+        setError("Add your API key in Settings first to use this engine.");
+        if (onOpenSettings) onOpenSettings();
+        return;
+      }
+      body = {
+        ...body,
+        apiKey: cfg.apiKey,
+        custom: { baseUrl: cfg.baseUrl, model: cfg.model },
+      };
+    }
     setLoading(true);
     setError("");
     setNotice("");
@@ -86,7 +102,7 @@ export default function HumanizerWorkspace() {
     try {
       const result = await postNDJSON(
         "/api/humanize?stream=1",
-        { text, mode, tone, provider },
+        body,
         (event) => {
           if (event.type === "progress" && event.total > 1) {
             setProgress(`Processing section ${Math.max(event.done, 1)} of ${event.total}…`);
@@ -272,6 +288,16 @@ export default function HumanizerWorkspace() {
           </div>
         </div>
       </div>
+
+      {provider === "custom" && !hasKeyConfig() && (
+        <button
+          onClick={onOpenSettings}
+          className="mb-4 w-full rounded-xl border border-[#e8dfc8] bg-[#faf6e9] px-4 py-3 text-left text-[13px] leading-6 text-[#6b5a2b] hover:border-[#d8cba4]"
+        >
+          <strong className="font-semibold">“My API key” needs a key.</strong>{" "}
+          Open Settings to add a free Gemini, Groq, or OpenRouter key — it takes a minute.
+        </button>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="overflow-hidden rounded-2xl border border-[#e1e2dc] bg-white shadow-[0_4px_22px_rgba(28,38,29,0.03)]">
