@@ -28,7 +28,7 @@ function classifyError(error) {
  * A smaller, widely-available instruction model keeps analysis working
  * even if the primary model has a bad day with a particular prompt.
  */
-const CLOUDFLARE_FALLBACK_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const CLOUDFLARE_FALLBACK_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8";
 
 export async function callCloudflareAI(env, systemPrompt, userText, options = {}) {
   if (!env.AI) {
