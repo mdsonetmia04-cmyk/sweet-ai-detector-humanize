@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "sweet-ai-detector-humanizer",
+  "main": "src/worker/index.js",
+  "compatibility_date": "2026-10-11",
+  "ai": {
+    "binding": "AI"
+  },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "DEFAULT_PROVIDER": "auto",
+    "CF_AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "EXTERNAL_AI_BASE_URL": "https://api.openai.com/v1",
+    "EXTERNAL_AI_MODEL": "gpt-4o-mini"
+  }
+  // Secrets (never commit): EXTERNAL_AI_API_KEY
+  // Set with: npx wrangler secret put EXTERNAL_AI_API_KEY
+}

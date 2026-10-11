@@ -1,0 +1,7 @@
+# Copy to .dev.vars for local testing. Never commit the real .dev.vars.
+# The Workers AI binding needs no key; the external provider does.
+# EXTERNAL_AI_API_KEY=<redacted>
+# EXTERNAL_AI_BASE_URL=https://api.openai.com/v1
+# EXTERNAL_AI_MODEL=gpt-4o-mini
+# CF_AI_MODEL=@cf/meta/llama-3.3-70b-instruct-fp8-fast
+# DEFAULT_PROVIDER=auto
