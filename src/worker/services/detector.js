@@ -173,7 +173,7 @@ export async function analyzeDocument(env, { text, provider, custom, onProgress,
       provider,
       DETECTOR_SYSTEM_PROMPT,
       chunks[i],
-      { temperature: 0.2, maxTokens: 2048, custom },
+      { temperature: 0.6, maxTokens: 4096, custom },
     );
     const parsed = parseAnalysisResponse(result.text);
     analyses.push(parsed);
