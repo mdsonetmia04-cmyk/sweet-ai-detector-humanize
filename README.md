@@ -218,3 +218,7 @@ sweet-ai-detector-humanizer/
   full model response.
 - Automated tests cover chunking, retry/fallback logic, detector parsing, and rate-limit helpers —
   not live provider calls or browser rendering.
+
+## License
+
+This project is open source under the [MIT License](LICENSE).
