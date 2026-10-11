@@ -84,18 +84,21 @@ describe("countSentencesSimple", () => {
 });
 
 describe("analyzeDocument pattern coverage", () => {
-  function mockEnv(flagged) {
+  function mockEnv(obsCount) {
+    const observations = Array.from({ length: obsCount }, (_, i) => ({
+      quote: `flagged passage number ${i}`,
+      note: "test pattern",
+    }));
     return {
       AI: {
         run: async () => ({
           response: JSON.stringify({
             assessment: "mixed",
             explanation: "Test.",
-            sentenceObservations: [],
+            sentenceObservations: observations,
             repetitivePatterns: [],
             writingObservations: [],
             suggestions: [],
-            flaggedSentences: flagged,
           }),
         }),
       },
@@ -111,7 +114,7 @@ describe("analyzeDocument pattern coverage", () => {
     assert.match(result.coverageNote, /heuristic/i);
   });
 
-  it("clamps flagged counts to the chunk sentence count", async () => {
+  it("clamps flagged counts to the analyzed sentence count", async () => {
     const text = "Just one sentence here.";
     const result = await analyzeDocument(mockEnv(99), { text, provider: "cloudflare" });
     assert.equal(result.patternCoverage, 100);
@@ -123,5 +126,12 @@ describe("analyzeDocument pattern coverage", () => {
     const result = await analyzeDocument(mockEnv(0), { text, provider: "cloudflare" });
     assert.equal(result.patternCoverage, 0);
     assert.equal(result.assessment, "mixed");
+  });
+
+  it("caps displayed observations while counting all for coverage", async () => {
+    const text = Array.from({ length: 30 }, (_, i) => `Sentence number ${i} is here.`).join(" ");
+    const result = await analyzeDocument(mockEnv(25), { text, provider: "cloudflare" });
+    assert.ok(result.sentenceObservations.length <= 10);
+    assert.equal(result.sentencesFlagged, 25);
   });
 });

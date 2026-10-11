@@ -22,13 +22,11 @@ Examine the text and return ONLY a JSON object with exactly these keys:
   "sentenceObservations": [{"quote": "short excerpt, max 25 words", "note": "what pattern this shows, max 20 words"}],
   "repetitivePatterns": ["observed repetitive or formulaic constructions, max 4 items"],
   "writingObservations": ["neutral observations about structure, vocabulary, rhythm, max 5 items"],
-  "suggestions": ["practical writing improvements: specificity, examples, varied rhythm, concrete detail, max 5 items"],
-  "flaggedSentences": 3
+  "suggestions": ["practical writing improvements: specificity, examples, varied rhythm, concrete detail, max 5 items"]
 }
 
 Rules:
 - "assessment" describes how many AI-associated writing patterns you observe: "low" (few or none), "mixed" (some passages), "elevated" (many throughout). It is NOT a probability that a machine wrote the text.
-- "flaggedSentences" is your count of sentences in THIS text that show AI-associated patterns. Count honestly; 0 is fine.
 - Quote excerpts verbatim from the text. Keep each list short and specific; skip empty sections with [].
 - Do not invent scores, percentages, or model names. Do not claim certainty.
 - The explanation must say the result is an estimate and may be wrong.`;
@@ -114,7 +112,6 @@ export function parseAnalysisResponse(raw) {
             note: coerceString(o.note, 160),
           }))
           .filter((o) => o.quote && o.note)
-          .slice(0, 8)
       : [],
     repetitivePatterns: coerceStringArray(parsed.repetitivePatterns, 4),
     writingObservations: coerceStringArray(parsed.writingObservations, 5),
@@ -180,24 +177,20 @@ export async function analyzeDocument(env, { text, provider, custom, onProgress,
     );
     const parsed = parseAnalysisResponse(result.text);
     analyses.push(parsed);
-    const chunkSentences = countSentencesSimple(chunks[i]);
-    sentencesAnalyzed += chunkSentences;
-    // The model's own flagged count, clamped to the chunk's sentence count
-    // so a miscount can never push coverage over 100% for that chunk.
-    sentencesFlagged += Math.min(parsed.flaggedSentences, chunkSentences);
+    sentencesAnalyzed += countSentencesSimple(chunks[i]);
     used.add(providerLabel(result.provider));
     if (onProgress) {
       await onProgress({ done: i + 1, total: chunks.length });
     }
   }
 
-  const sentenceObservations = analyses
-    .flatMap((a) => a.sentenceObservations)
-    .slice(0, 10);
+  const allObservations = analyses.flatMap((a) => a.sentenceObservations);
+  const sentenceObservations = allObservations.slice(0, 10);
 
-  // Pattern coverage: share of analyzed sentences the analyzer itself
-  // flagged. A computed heuristic — NOT the probability the text is
-  // AI-generated.
+  // Pattern coverage: share of analyzed sentences the analyzer flagged with
+  // AI-associated patterns. Computed server-side from the analysis output —
+  // NOT the probability the text was AI-generated.
+  sentencesFlagged = Math.min(allObservations.length, sentencesAnalyzed);
   const patternCoverage =
     sentencesAnalyzed > 0
       ? Math.min(100, Math.round((100 * sentencesFlagged) / sentencesAnalyzed))
@@ -211,7 +204,7 @@ export async function analyzeDocument(env, { text, provider, custom, onProgress,
     sentencesFlagged,
     sentencesAnalyzed,
     coverageNote:
-      "Pattern coverage is the share of sentences the analyzer flagged for AI-associated writing patterns. " +
+      "Pattern coverage is the share of analyzed sentences the analyzer flagged for AI-associated writing patterns. " +
       "It is a heuristic estimate, not the probability the text was AI-generated. Human writing can score " +
       "high and AI-assisted writing can score low.",
     explanation:
