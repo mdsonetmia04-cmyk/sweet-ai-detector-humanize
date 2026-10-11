@@ -189,6 +189,14 @@ Returns `{ "analysis": { "method": "ai-writing-pattern-analysis", "assessment": 
 heuristic shown in the UI as a scanner-style gauge. It is **not** the probability the text was
 AI-generated, and it must never be presented as a validated detection score.
 
+### Cloudflare model fallback
+`src/worker/providers/cloudflare.js` tries the primary model (`CF_AI_MODEL`,
+default `@cf/meta/llama-3.3-70b-instruct-fp8-fast`) first; if it returns an
+empty result it automatically falls back to `@cf/meta/llama-3.1-8b-instruct-fp8`.
+(Note: the non-`fp8` `@cf/meta/llama-3.1-8b-instruct` id was deprecated by
+Cloudflare on 2026-05-30 — do not use it.) `?debug=1` on `/api/detect`
+includes the safe provider error message in 502 responses for diagnosis.
+
 All endpoints validate input server-side and return consistent JSON errors
 (`{ "error": "…" }`) with appropriate HTTP status codes.
 
