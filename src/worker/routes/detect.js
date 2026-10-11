@@ -96,6 +96,7 @@ export async function handleDetect(request, env) {
 
   const provider = normalizeProvider(body.provider, env);
   const stream = wantsStream(request, url);
+  const debug = url.searchParams.get("debug") === "1";
 
   let custom;
   if (provider === "custom") {
@@ -141,6 +142,9 @@ export async function handleDetect(request, env) {
       const status = err?.status === 429 ? 429 : 401;
       return errorJson(friendly, status);
     }
-    return errorJson(GENERIC_ANALYSIS_ERROR, 502);
+    // Temporary diagnostic: ?debug=1 exposes the safe, generic provider
+    // error message (never user text) to identify production failures.
+    const extra = debug ? { debugError: String(err?.message || "unknown").slice(0, 300) } : {};
+    return errorJson(GENERIC_ANALYSIS_ERROR, 502, extra);
   }
 }
