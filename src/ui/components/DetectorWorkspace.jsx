@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ClipboardPaste, FileText,
-  LoaderCircle, MinusCircle, ScanSearch, X, Lightbulb, Quote,
+  LoaderCircle, MinusCircle, ScanSearch, X, Lightbulb, Quote, Wand2, Copy, Check,
 } from "lucide-react";
 import { countSentences, countWords } from "../utils/text.js";
 import { postNDJSON } from "../utils/api.js";
@@ -74,6 +74,8 @@ export default function DetectorWorkspace({ onOpenSettings }) {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
+  const [fixes, setFixes] = useState({}); // passage index -> { status, fixed, error }
+  const [fixAll, setFixAll] = useState({ loading: false, applied: 0, total: 0 });
 
   const stats = useMemo(() => ({
     words: countWords(input),
@@ -99,6 +101,8 @@ export default function DetectorWorkspace({ onOpenSettings }) {
     setLoading(true);
     setError("");
     setAnalysis(null);
+    setFixes({});
+    setFixAll({ loading: false, applied: 0, total: 0 });
     try {
       const result = await postNDJSON(
         "/api/detect?stream=1",
@@ -133,6 +137,102 @@ export default function DetectorWorkspace({ onOpenSettings }) {
     } catch {
       setError("Clipboard access was blocked. Paste with Ctrl/Cmd + V instead.");
     }
+  }
+
+  function paraphraseBody(text) {
+    let body = { text, mode: "humanize", tone: "natural", provider };
+    if (provider === "custom") {
+      const cfg = loadKeyConfig();
+      if (!cfg) return { error: "Add your API key in Settings first to use this engine." };
+      body = { ...body, apiKey: cfg.apiKey, custom: { baseUrl: cfg.baseUrl, model: cfg.model } };
+    }
+    return { body };
+  }
+
+  function requireKey() {
+    if (provider === "custom" && !loadKeyConfig()) {
+      setError("Add your API key in Settings first to use this engine.");
+      if (onOpenSettings) onOpenSettings();
+      return false;
+    }
+    return true;
+  }
+
+  async function fixPassage(index, quote) {
+    if (fixes[index]?.status === "loading") return;
+    if (!requireKey()) return;
+    const { body, error } = paraphraseBody(quote);
+    if (error) {
+      setFixes((prev) => ({ ...prev, [index]: { status: "error", error } }));
+      return;
+    }
+    setFixes((prev) => ({ ...prev, [index]: { status: "loading" } }));
+    try {
+      const result = await postNDJSON("/api/humanize", body, null);
+      const fixed = (result.text || "").trim();
+      if (!fixed) throw new Error("The rewrite came back empty. Try again.");
+      setFixes((prev) => ({ ...prev, [index]: { status: "done", fixed } }));
+    } catch (err) {
+      setFixes((prev) => ({
+        ...prev,
+        [index]: { status: "error", error: err.message || "Rewrite failed. Try again." },
+      }));
+    }
+  }
+
+  function dismissFix(index) {
+    setFixes((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      setError("Clipboard access was blocked.");
+    }
+  }
+
+  function replaceInText(index, quote, fixed) {
+    if (!input.includes(quote)) {
+      setFixes((prev) => ({
+        ...prev,
+        [index]: { status: "error", error: "Couldn't find this passage in your text anymore." },
+      }));
+      return;
+    }
+    setInput(input.replace(quote, fixed));
+    dismissFix(index);
+  }
+
+  async function fixAllPassages() {
+    const observations = analysis?.sentenceObservations || [];
+    if (!observations.length || fixAll.loading) return;
+    if (!requireKey()) return;
+    setFixAll({ loading: true, applied: 0, total: observations.length });
+    setFixes({});
+    let newText = input;
+    let applied = 0;
+    for (let i = 0; i < observations.length; i++) {
+      const quote = observations[i].quote;
+      const { body } = paraphraseBody(quote);
+      try {
+        const result = await postNDJSON("/api/humanize", body, null);
+        const fixed = (result.text || "").trim();
+        if (fixed && newText.includes(quote)) {
+          newText = newText.replace(quote, fixed);
+          applied++;
+        }
+      } catch {
+        // keep going; failures are simply skipped
+      }
+      setFixAll({ loading: true, applied, total: observations.length });
+    }
+    setInput(newText);
+    setFixAll({ loading: false, applied, total: observations.length });
   }
 
   const style = analysis ? ASSESSMENT_STYLE[analysis.assessment] || ASSESSMENT_STYLE.mixed : null;
@@ -234,19 +334,89 @@ export default function DetectorWorkspace({ onOpenSettings }) {
 
                 {analysis.sentenceObservations?.length > 0 && (
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#6f8a76]">
-                      Notable passages
-                    </p>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6f8a76]">
+                        Notable passages
+                      </p>
+                      <button
+                        onClick={fixAllPassages}
+                        disabled={fixAll.loading}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-[#1e4a37] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#16382a] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {fixAll.loading
+                          ? <LoaderCircle size={13} className="animate-spin" />
+                          : <Wand2 size={13} />}
+                        {fixAll.loading ? `Fixing ${fixAll.applied} of ${fixAll.total}…` : "Fix all with AI"}
+                      </button>
+                    </div>
+                    {!fixAll.loading && fixAll.total > 0 && (
+                      <p className="mb-2 flex items-center gap-1.5 text-xs leading-5 text-[#3e7254]">
+                        <Check size={13} />
+                        Applied {fixAll.applied} of {fixAll.total} fixes to your text.
+                        Run the analysis again to re-check.
+                      </p>
+                    )}
                     <ul className="space-y-2.5">
-                      {analysis.sentenceObservations.map((obs, i) => (
-                        <li key={i} className="rounded-lg border border-[#ecece7] bg-[#fbfbf8] px-3.5 py-2.5">
-                          <p className="flex gap-2 text-[13px] italic leading-6 text-[#4e554d]">
-                            <Quote size={13} className="mt-1 shrink-0 text-[#a1a59e]" />
-                            <span>“{obs.quote}”</span>
-                          </p>
-                          <p className="mt-1 pl-5 text-xs leading-5 text-[#7c8178]">{obs.note}</p>
-                        </li>
-                      ))}
+                      {analysis.sentenceObservations.map((obs, i) => {
+                        const fix = fixes[i];
+                        return (
+                          <li key={i} className="rounded-lg border border-[#ecece7] bg-[#fbfbf8] px-3.5 py-2.5">
+                            <p className="flex gap-2 text-[13px] italic leading-6 text-[#4e554d]">
+                              <Quote size={13} className="mt-1 shrink-0 text-[#a1a59e]" />
+                              <span>“{obs.quote}”</span>
+                            </p>
+                            <p className="mt-1 pl-5 text-xs leading-5 text-[#7c8178]">{obs.note}</p>
+                            <div className="mt-2 pl-5">
+                              {fix?.status === "loading" ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs text-[#6b7068]">
+                                  <LoaderCircle size={13} className="animate-spin" /> Rewriting…
+                                </span>
+                              ) : fix?.status === "done" ? (
+                                <div className="rounded-lg border border-[#d9e6d9] bg-[#f2f7f0] px-3 py-2.5">
+                                  <p className="text-[13px] leading-6 text-[#2f3a32]">{fix.fixed}</p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    <button
+                                      onClick={() => replaceInText(i, obs.quote, fix.fixed)}
+                                      className="inline-flex items-center gap-1 rounded-full bg-[#1e4a37] px-3 py-1 text-xs font-semibold text-white hover:bg-[#16382a]"
+                                    >
+                                      <Check size={12} /> Replace in text
+                                    </button>
+                                    <button
+                                      onClick={() => copyText(fix.fixed)}
+                                      className="inline-flex items-center gap-1 rounded-full border border-[#d9e6d9] bg-white px-3 py-1 text-xs font-medium text-[#3e7254] hover:bg-[#eef4ec]"
+                                    >
+                                      <Copy size={12} /> Copy
+                                    </button>
+                                    <button
+                                      onClick={() => dismissFix(i)}
+                                      className="rounded-full px-2 py-1 text-xs text-[#858a82] hover:text-[#4e554d]"
+                                    >
+                                      Dismiss
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : fix?.status === "error" ? (
+                                <p className="text-xs leading-5 text-[#9a3d31]">
+                                  {fix.error}{" "}
+                                  <button
+                                    onClick={() => fixPassage(i, obs.quote)}
+                                    className="font-semibold underline hover:no-underline"
+                                  >
+                                    Try again
+                                  </button>
+                                </p>
+                              ) : (
+                                <button
+                                  onClick={() => fixPassage(i, obs.quote)}
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-[#d9e6d9] bg-white px-3 py-1.5 text-xs font-medium text-[#3e7254] transition hover:bg-[#f2f7f0]"
+                                >
+                                  <Wand2 size={13} /> Fix with AI
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 )}
