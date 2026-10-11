@@ -22,11 +22,13 @@ Examine the text and return ONLY a JSON object with exactly these keys:
   "sentenceObservations": [{"quote": "short excerpt, max 25 words", "note": "what pattern this shows, max 20 words"}],
   "repetitivePatterns": ["observed repetitive or formulaic constructions, max 4 items"],
   "writingObservations": ["neutral observations about structure, vocabulary, rhythm, max 5 items"],
-  "suggestions": ["practical writing improvements: specificity, examples, varied rhythm, concrete detail, max 5 items"]
+  "suggestions": ["practical writing improvements: specificity, examples, varied rhythm, concrete detail, max 5 items"],
+  "flaggedSentences": 3
 }
 
 Rules:
 - "assessment" describes how many AI-associated writing patterns you observe: "low" (few or none), "mixed" (some passages), "elevated" (many throughout). It is NOT a probability that a machine wrote the text.
+- "flaggedSentences" is your count of sentences in THIS text that show AI-associated patterns. Count honestly; 0 is fine.
 - Quote excerpts verbatim from the text. Keep each list short and specific; skip empty sections with [].
 - Do not invent scores, percentages, or model names. Do not claim certainty.
 - The explanation must say the result is an estimate and may be wrong.`;
@@ -48,6 +50,12 @@ function stripCodeFences(raw) {
 function coerceString(value, maxLen = 500) {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, maxLen);
+}
+
+function coerceNonNegativeInt(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.floor(n));
 }
 
 function coerceStringArray(value, maxItems = 6, maxLen = 300) {
@@ -73,6 +81,7 @@ export function parseAnalysisResponse(raw) {
     repetitivePatterns: [],
     writingObservations: [],
     suggestions: [],
+    flaggedSentences: 0,
     unstructured: true,
     rawText: coerceString(raw, 4000),
   };
@@ -110,8 +119,21 @@ export function parseAnalysisResponse(raw) {
     repetitivePatterns: coerceStringArray(parsed.repetitivePatterns, 4),
     writingObservations: coerceStringArray(parsed.writingObservations, 5),
     suggestions: coerceStringArray(parsed.suggestions, 5),
+    flaggedSentences: coerceNonNegativeInt(parsed.flaggedSentences),
     unstructured: false,
   };
+}
+
+/**
+ * Deterministic sentence counter for coverage math.
+ * Kept simple and server-side so the percentage is computed, not invented.
+ */
+export function countSentencesSimple(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  const parts = trimmed.split(/(?<=[.!?…])\s+|\n+/);
+  const count = parts.filter((p) => p.trim().length > 0).length;
+  return Math.max(count, 1);
 }
 
 function mergeAssessments(assessments) {
@@ -145,6 +167,8 @@ export async function analyzeDocument(env, { text, provider, custom, onProgress,
   const chunks = chunkText(text, 6500).slice(0, maxChunks);
   const analyses = [];
   const used = new Set();
+  let sentencesAnalyzed = 0;
+  let sentencesFlagged = 0;
 
   for (let i = 0; i < chunks.length; i++) {
     const result = await runProvider(
@@ -154,7 +178,13 @@ export async function analyzeDocument(env, { text, provider, custom, onProgress,
       chunks[i],
       { temperature: 0.2, maxTokens: 2048, custom },
     );
-    analyses.push(parseAnalysisResponse(result.text));
+    const parsed = parseAnalysisResponse(result.text);
+    analyses.push(parsed);
+    const chunkSentences = countSentencesSimple(chunks[i]);
+    sentencesAnalyzed += chunkSentences;
+    // The model's own flagged count, clamped to the chunk's sentence count
+    // so a miscount can never push coverage over 100% for that chunk.
+    sentencesFlagged += Math.min(parsed.flaggedSentences, chunkSentences);
     used.add(providerLabel(result.provider));
     if (onProgress) {
       await onProgress({ done: i + 1, total: chunks.length });
@@ -165,10 +195,25 @@ export async function analyzeDocument(env, { text, provider, custom, onProgress,
     .flatMap((a) => a.sentenceObservations)
     .slice(0, 10);
 
+  // Pattern coverage: share of analyzed sentences the analyzer itself
+  // flagged. A computed heuristic — NOT the probability the text is
+  // AI-generated.
+  const patternCoverage =
+    sentencesAnalyzed > 0
+      ? Math.min(100, Math.round((100 * sentencesFlagged) / sentencesAnalyzed))
+      : 0;
+
   return {
     method: "ai-writing-pattern-analysis",
     assessment: mergeAssessments(analyses.map((a) => a.assessment)),
     assessmentLabel: null, // filled by the route for i18n-free labeling
+    patternCoverage,
+    sentencesFlagged,
+    sentencesAnalyzed,
+    coverageNote:
+      "Pattern coverage is the share of sentences the analyzer flagged for AI-associated writing patterns. " +
+      "It is a heuristic estimate, not the probability the text was AI-generated. Human writing can score " +
+      "high and AI-assisted writing can score low.",
     explanation:
       "This is a heuristic analysis of writing patterns, not a validated AI detector. " +
       "It estimates how many AI-associated style patterns appear in the text; the estimate can be wrong. " +

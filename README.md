@@ -180,9 +180,14 @@ Append `?stream=1` (or `Accept: application/x-ndjson`) for newline-delimited JSO
 ```
 
 Returns `{ "analysis": { "method": "ai-writing-pattern-analysis", "assessment": "low|mixed|elevated",
-"assessmentLabel": "…", "explanation": "…", "sentenceObservations": […],
+"assessmentLabel": "…", "patternCoverage": 42, "sentencesFlagged": 5, "sentencesAnalyzed": 12,
+"coverageNote": "…", "explanation": "…", "sentenceObservations": […],
 "repetitivePatterns": […], "writingObservations": […], "suggestions": […],
 "sectionsAnalyzed": 2, "providersUsed": […] } }`. Also supports `?stream=1`.
+
+`patternCoverage` is the share of analyzed sentences the analyzer itself flagged — a computed
+heuristic shown in the UI as a scanner-style gauge. It is **not** the probability the text was
+AI-generated, and it must never be presented as a validated detection score.
 
 All endpoints validate input server-side and return consistent JSON errors
 (`{ "error": "…" }`) with appropriate HTTP status codes.

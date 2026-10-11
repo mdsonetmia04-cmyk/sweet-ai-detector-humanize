@@ -25,6 +25,48 @@ const ASSESSMENT_STYLE = {
   },
 };
 
+function CoverageGauge({ analysis }) {
+  const coverage = analysis.patternCoverage ?? 0;
+  const flagged = analysis.sentencesFlagged ?? 0;
+  const total = analysis.sentencesAnalyzed ?? 0;
+  const style = ASSESSMENT_STYLE[analysis.assessment] || ASSESSMENT_STYLE.mixed;
+  const Icon = style.icon;
+  return (
+    <div className="rounded-xl border border-[#e1e2dc] bg-[#fbfbf8] px-4 py-4">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6f8a76]">
+            Pattern coverage
+          </p>
+          <p className="mt-1 text-4xl font-semibold tracking-tight text-[#20241f]">
+            {coverage}
+            <span className="text-xl text-[#6b7068]">%</span>
+          </p>
+        </div>
+        <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${style.chip}`}>
+          <Icon size={14} /> {analysis.assessmentLabel || style.label}
+        </span>
+      </div>
+      <div className="relative mt-4" aria-hidden="true">
+        <div className="h-3 overflow-hidden rounded-full bg-gradient-to-r from-[#8fc39a] via-[#ecd27e] to-[#e08a70]" />
+        <div
+          className="absolute top-1/2 h-5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-[#20241f] shadow"
+          style={{ left: `${Math.min(100, Math.max(0, coverage))}%` }}
+        />
+      </div>
+      <div className="mt-1.5 flex justify-between text-[11px] font-medium text-[#858a82]">
+        <span>Low</span>
+        <span>Mixed</span>
+        <span>Elevated</span>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-[#7c8178]">
+        ~{flagged} of {total} sentences flagged for AI-associated patterns.{" "}
+        {analysis.coverageNote || "Heuristic estimate — not the probability the text was AI-generated."}
+      </p>
+    </div>
+  );
+}
+
 export default function DetectorWorkspace({ onOpenSettings }) {
   const [input, setInput] = useState("");
   const [analysis, setAnalysis] = useState(null);
@@ -179,6 +221,8 @@ export default function DetectorWorkspace({ onOpenSettings }) {
               </div>
             ) : analysis ? (
               <div className="space-y-5">
+                <CoverageGauge analysis={analysis} />
+
                 <p className="text-sm leading-7 text-[#3d433c]">{analysis.explanation}</p>
 
                 {analysis.sectionsAnalyzed > 1 && (
